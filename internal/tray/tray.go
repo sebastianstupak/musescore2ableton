@@ -12,11 +12,13 @@ import (
 //go:embed assets/icon.ico
 var iconBytes []byte
 
-// StatusUpdate carries sync results to the tray for display.
+// StatusUpdate carries sync results and project context to the tray for display.
 type StatusUpdate struct {
-	Time   time.Time
-	Result syncer.Result
-	Err    error
+	Time            time.Time
+	Result          syncer.Result
+	Err             error
+	ProjectName     string // active project name; empty = no project detected
+	AbletonMismatch string // non-empty = Ableton has a different project open
 }
 
 // Run starts the system tray. Blocks until the user selects Quit.
@@ -24,20 +26,39 @@ type StatusUpdate struct {
 // updateCh: receive StatusUpdate to refresh the tray menu.
 // quitCh: closed when the user selects Quit.
 // pauseCh: send true to pause file-event syncing, false to resume.
-func Run(forceSyncCh chan<- struct{}, updateCh <-chan StatusUpdate, quitCh chan<- struct{}, pauseCh chan<- bool) {
+// switchableProjects: channel sending names of projects available to switch to; nil disables switch submenu.
+// activateCh: send a project name to request switching to that project; may be nil.
+func Run(
+	forceSyncCh chan<- struct{},
+	updateCh <-chan StatusUpdate,
+	quitCh chan<- struct{},
+	pauseCh chan<- bool,
+	switchableProjects <-chan []string,
+	activateCh chan<- string,
+) {
 	systray.Run(
-		func() { onReady(forceSyncCh, updateCh, quitCh, pauseCh) },
+		func() { onReady(forceSyncCh, updateCh, quitCh, pauseCh, switchableProjects, activateCh) },
 		func() {},
 	)
 }
 
-func onReady(forceSyncCh chan<- struct{}, updateCh <-chan StatusUpdate, quitCh chan<- struct{}, pauseCh chan<- bool) {
+func onReady(
+	forceSyncCh chan<- struct{},
+	updateCh <-chan StatusUpdate,
+	quitCh chan<- struct{},
+	pauseCh chan<- bool,
+	switchableProjects <-chan []string,
+	activateCh chan<- string,
+) {
 	systray.SetIcon(iconBytes)
 	systray.SetTitle("m2a")
 	systray.SetTooltip("musescore2ableton — watching")
 
 	mStatus := systray.AddMenuItem("Idle", "")
 	mStatus.Disable()
+	mMismatch := systray.AddMenuItem("", "")
+	mMismatch.Disable()
+	mMismatch.Hide()
 	systray.AddSeparator()
 
 	mForce := systray.AddMenuItem("↺  Force Sync", "Sync now regardless of file change")
@@ -46,6 +67,7 @@ func onReady(forceSyncCh chan<- struct{}, updateCh <-chan StatusUpdate, quitCh c
 	mQuit := systray.AddMenuItem("✕  Quit", "Exit m2a")
 
 	watching := true
+	var switchItems []*systray.MenuItem
 
 	go func() {
 		for {
@@ -54,7 +76,29 @@ func onReady(forceSyncCh chan<- struct{}, updateCh <-chan StatusUpdate, quitCh c
 				if !ok {
 					return
 				}
-				refreshMenu(mStatus, update)
+				refreshMenu(mStatus, mMismatch, update)
+
+			case projects, ok := <-switchableProjects:
+				if !ok || activateCh == nil {
+					continue
+				}
+				for _, item := range switchItems {
+					item.Hide()
+				}
+				switchItems = switchItems[:0]
+				for _, name := range projects {
+					n := name
+					item := systray.AddMenuItem("  ○ "+n, "Switch to "+n)
+					switchItems = append(switchItems, item)
+					go func(i *systray.MenuItem) {
+						for range i.ClickedCh {
+							select {
+							case activateCh <- n:
+							default:
+							}
+						}
+					}(item)
+				}
 
 			case <-mForce.ClickedCh:
 				select {
@@ -89,10 +133,23 @@ func onReady(forceSyncCh chan<- struct{}, updateCh <-chan StatusUpdate, quitCh c
 	}()
 }
 
-func refreshMenu(mStatus *systray.MenuItem, u StatusUpdate) {
+func refreshMenu(mStatus *systray.MenuItem, mMismatch *systray.MenuItem, u StatusUpdate) {
 	t := u.Time.Format("15:04:05")
+
+	if u.AbletonMismatch != "" {
+		mMismatch.SetTitle(fmt.Sprintf("⚠ Ableton: %s", u.AbletonMismatch))
+		mMismatch.Show()
+	} else {
+		mMismatch.Hide()
+	}
+
 	if u.Err != nil {
 		mStatus.SetTitle(fmt.Sprintf("✗  Error at %s: %s", t, u.Err))
+		return
+	}
+
+	if u.ProjectName == "" {
+		mStatus.SetTitle("No project detected")
 		return
 	}
 
@@ -108,8 +165,8 @@ func refreshMenu(mStatus *systray.MenuItem, u StatusUpdate) {
 	}
 
 	if conflicts > 0 {
-		mStatus.SetTitle(fmt.Sprintf("⚠  %s — %d conflict(s), %d updated", t, conflicts, updated))
+		mStatus.SetTitle(fmt.Sprintf("● %s  ⚠ %d conflict(s), %d updated  %s", u.ProjectName, conflicts, updated, t))
 	} else {
-		mStatus.SetTitle(fmt.Sprintf("✓  %s — %d track(s) updated", t, updated))
+		mStatus.SetTitle(fmt.Sprintf("● %s  ✓ %d updated  %s", u.ProjectName, updated, t))
 	}
 }

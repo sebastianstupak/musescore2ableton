@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/sebastianstupak/m2a/internal/ableton"
 	"github.com/sebastianstupak/m2a/internal/config"
 	"github.com/sebastianstupak/m2a/internal/exporter"
+	"github.com/sebastianstupak/m2a/internal/globalconfig"
 	"github.com/sebastianstupak/m2a/internal/parser"
 	"github.com/sebastianstupak/m2a/internal/state"
 	"github.com/sebastianstupak/m2a/internal/syncer"
@@ -32,6 +34,11 @@ var watchCmd = &cobra.Command{
 	Use:   "watch",
 	Short: "Watch score file and sync on every save (launches tray)",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// No --config flag: use auto-detect mode.
+		if !cmd.Flags().Changed("config") {
+			return runAutoWatch()
+		}
+
 		cfg, err := config.Load(cfgPath)
 		if err != nil {
 			return err
@@ -122,7 +129,7 @@ var watchCmd = &cobra.Command{
 		}()
 
 		log.Printf("m2a watching %s", cfg.Score)
-		tray.Run(forceSyncCh, updateCh, quitCh, pauseCh)
+		tray.Run(forceSyncCh, updateCh, quitCh, pauseCh, nil, nil)
 		return nil
 	},
 }
@@ -190,6 +197,141 @@ var resetCmd = &cobra.Command{
 	},
 }
 
+// config root sub-commands
+
+var configCmd = &cobra.Command{
+	Use:   "config",
+	Short: "Manage m2a configuration",
+}
+
+var configRootCmd = &cobra.Command{
+	Use:   "root",
+	Short: "Manage project root directories",
+}
+
+var rootAddCmd = &cobra.Command{
+	Use:   "add <path>",
+	Short: "Add a project root directory",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := globalconfig.Load()
+		if err != nil {
+			return err
+		}
+		root := args[0]
+		if _, err := os.Stat(root); os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "Warning: %s does not exist — saving anyway\n", root)
+		}
+		cfg.AddRoot(root)
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		fmt.Printf("Added root: %s\n", root)
+		return nil
+	},
+}
+
+var rootRemoveCmd = &cobra.Command{
+	Use:   "remove <path>",
+	Short: "Remove a project root directory",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := globalconfig.Load()
+		if err != nil {
+			return err
+		}
+		cfg.RemoveRoot(args[0])
+		if err := cfg.Save(); err != nil {
+			return err
+		}
+		fmt.Printf("Removed root: %s\n", args[0])
+		return nil
+	},
+}
+
+var rootListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List configured project root directories",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := globalconfig.Load()
+		if err != nil {
+			return err
+		}
+		if len(cfg.Roots) == 0 {
+			fmt.Println("No roots configured. Use: m2a config root add <path>")
+			return nil
+		}
+		for _, r := range cfg.Roots {
+			fmt.Println(r)
+		}
+		return nil
+	},
+}
+
+// create command
+
+var createRoot string
+
+var createCmd = &cobra.Command{
+	Use:   "create <name>",
+	Short: "Scaffold a new m2a project folder",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+		slug := slugify(name)
+
+		baseDir := createRoot
+		if baseDir == "" {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			baseDir = cwd
+			cfg, _ := globalconfig.Load()
+			if cfg != nil && !underAnyRoot(cwd, cfg.Roots) {
+				fmt.Fprintf(os.Stderr, "Warning: %s is not under any known root. Run `m2a config root add %s` to enable auto-detection.\n", cwd, cwd)
+			}
+		}
+
+		projectDir := filepath.Join(baseDir, slug)
+		if err := os.MkdirAll(filepath.Join(projectDir, "ableton"), 0755); err != nil {
+			return err
+		}
+		yml := fmt.Sprintf("score: %s.mscz\n", slug)
+		if err := os.WriteFile(filepath.Join(projectDir, "m2a.yml"), []byte(yml), 0644); err != nil {
+			return err
+		}
+		fmt.Printf("Created project: %s\n", projectDir)
+		fmt.Printf("Next: open Ableton, create a new set, and Save As → %s\n",
+			filepath.Join(projectDir, "ableton", name+".als"))
+		return nil
+	},
+}
+
+func slugify(name string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(name) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-':
+			b.WriteRune(r)
+		case r == ' ', r == '_':
+			b.WriteRune('-')
+		}
+	}
+	return b.String()
+}
+
+func underAnyRoot(path string, roots []string) bool {
+	clean := filepath.Clean(path)
+	for _, r := range roots {
+		rel, err := filepath.Rel(filepath.Clean(r), clean)
+		if err == nil && !strings.HasPrefix(rel, "..") {
+			return true
+		}
+	}
+	return false
+}
+
 func logResult(result syncer.Result) {
 	for name, r := range result.Tracks {
 		if r.Error != nil {
@@ -214,7 +356,10 @@ func actionIcon(a syncer.Action) string {
 func main() {
 	setupFileLog()
 	rootCmd.PersistentFlags().StringVar(&cfgPath, "config", "m2a.yml", "path to m2a.yml")
-	rootCmd.AddCommand(watchCmd, syncCmd, resetCmd)
+	createCmd.Flags().StringVar(&createRoot, "root", "", "parent directory to create project in (default: current directory)")
+	configCmd.AddCommand(configRootCmd)
+	configRootCmd.AddCommand(rootAddCmd, rootRemoveCmd, rootListCmd)
+	rootCmd.AddCommand(watchCmd, syncCmd, resetCmd, configCmd, createCmd)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
