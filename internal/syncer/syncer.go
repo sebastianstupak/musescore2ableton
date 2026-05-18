@@ -143,15 +143,17 @@ func createConflictTrack(ab AbletonBridge, track parser.Track, existingIdx int, 
 }
 
 func writeNotesToClip(ab AbletonBridge, trackIdx int, notes []parser.Note) error {
-	var length float64 = 4
+	var length float64 = 4 // default one bar at 4/4
 	for _, n := range notes {
-		end := n.StartBeat + n.Duration
-		if end > length {
+		if end := n.StartBeat + n.Duration; end > length {
 			length = end
 		}
 	}
 	if err := ab.CreateClip(trackIdx, 0, length); err != nil {
-		_ = ab.ClearNotes(trackIdx, 0)
+		// Clip likely already exists — clear it instead of creating a new one.
+		if clearErr := ab.ClearNotes(trackIdx, 0); clearErr != nil {
+			return fmt.Errorf("clip setup failed: create: %w, clear: %v", err, clearErr)
+		}
 	}
 	return ab.AddNotes(trackIdx, 0, notes)
 }
