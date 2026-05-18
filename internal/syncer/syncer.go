@@ -52,6 +52,8 @@ type AbletonBridge interface {
 	ClearNotes(trackIdx, clipSlotIdx int) error
 	AddNotes(trackIdx, clipSlotIdx int, notes []parser.Note) error
 	SetSongTempo(bpm float64) error
+	SetSongSignatureNumerator(n int) error
+	SetSongSignatureDenominator(d int) error
 }
 
 // SyncTracks compares new MIDI tracks against the last snapshot and the current
@@ -68,6 +70,15 @@ func SyncTracks(ab AbletonBridge, snap *state.SyncState, tracks []parser.Track, 
 	for _, track := range tracks {
 		if len(track.Tempos) > 0 {
 			_ = ab.SetSongTempo(track.Tempos[0].BPM)
+			break
+		}
+	}
+
+	// Apply time signature from first track that has time sig events.
+	for _, track := range tracks {
+		if len(track.TimeSigs) > 0 {
+			_ = ab.SetSongSignatureNumerator(int(track.TimeSigs[0].Numerator))
+			_ = ab.SetSongSignatureDenominator(int(track.TimeSigs[0].Denominator))
 			break
 		}
 	}

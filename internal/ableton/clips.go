@@ -65,6 +65,16 @@ func (c *Client) SetSongTempo(bpm float64) error {
 	return c.Send("/live/song/set/tempo", float32(bpm))
 }
 
+// SetSongSignatureNumerator sets the time signature numerator.
+func (c *Client) SetSongSignatureNumerator(n int) error {
+	return c.Send("/live/song/set/signature_numerator", int32(n))
+}
+
+// SetSongSignatureDenominator sets the time signature denominator.
+func (c *Client) SetSongSignatureDenominator(d int) error {
+	return c.Send("/live/song/set/signature_denominator", int32(d))
+}
+
 func toInt32(v interface{}) (int32, bool) {
 	switch t := v.(type) {
 	case int32:

@@ -62,7 +62,9 @@ func (s *stubAbleton) AddNotes(trackIdx, clipSlotIdx int, notes []parser.Note) e
 	s.addedNotes[trackIdx] = notes
 	return nil
 }
-func (s *stubAbleton) SetSongTempo(bpm float64) error { return nil }
+func (s *stubAbleton) SetSongTempo(bpm float64) error                  { return nil }
+func (s *stubAbleton) SetSongSignatureNumerator(n int) error           { return nil }
+func (s *stubAbleton) SetSongSignatureDenominator(d int) error         { return nil }
 
 func TestSync_FreshState_WritesNotes(t *testing.T) {
 	ab := newStub([]string{"Piano"})
