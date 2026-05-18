@@ -44,12 +44,28 @@ func (s *SyncState) Save(path string) error {
 	return os.Rename(tmp, path)
 }
 
+const floatEps = 1e-9
+
+func abs(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+func notesApproxEqual(a, b parser.Note) bool {
+	return a.Pitch == b.Pitch &&
+		a.Velocity == b.Velocity &&
+		abs(a.StartBeat-b.StartBeat) < floatEps &&
+		abs(a.Duration-b.Duration) < floatEps
+}
+
 func NotesEqual(a, b []parser.Note) bool {
 	if len(a) != len(b) {
 		return false
 	}
 	for i := range a {
-		if a[i] != b[i] {
+		if !notesApproxEqual(a[i], b[i]) {
 			return false
 		}
 	}
