@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build / ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - os: windows
+            runner: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact: m2a-windows-amd64.exe
+            binary: m2a.exe
+          - os: linux
+            runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact: m2a-linux-amd64
+            binary: m2a
+          - os: darwin
+            runner: macos-latest
+            goos: darwin
+            goarch: amd64
+            artifact: m2a-darwin-amd64
+            binary: m2a
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Install systray dependencies (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc libgtk-3-dev libappindicator3-dev
+
+      - name: Build
+        run: >
+          go build
+          -ldflags="-s -w"
+          -o ${{ matrix.binary }}
+          ./cmd/m2a
+
+      - name: Rename artifact
+        shell: bash
+        run: mv ${{ matrix.binary }} ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum * > checksums.txt && cat checksums.txt
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/m2a-windows-amd64.exe
+            dist/m2a-linux-amd64
+            dist/m2a-darwin-amd64
+            dist/checksums.txt
+          generate_release_notes: true
+          make_latest: true

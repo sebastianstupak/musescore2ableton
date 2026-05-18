@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Install systray dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc libgtk-3-dev libappindicator3-dev
+
+      - name: Verify module graph
+        run: go mod verify
+
+      - name: Build
+        run: go build ./...
+
+      - name: Unit + integration tests
+        run: go test ./internal/... -race -timeout 120s
+
+      - name: E2E tests
+        run: go test ./e2e/... -timeout 60s
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Install systray dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc libgtk-3-dev libappindicator3-dev
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
