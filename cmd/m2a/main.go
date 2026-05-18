@@ -155,6 +155,18 @@ var syncCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		for _, t := range tracks {
+			if r := result.Tracks[t.Name]; r.Action != syncer.ActionError {
+				snap.Tracks[t.Name] = state.TrackSnapshot{
+					Notes:    t.Notes,
+					Tempos:   t.Tempos,
+					TimeSigs: t.TimeSigs,
+				}
+			}
+		}
+		snap.SyncedAt = time.Now()
+		snap.ScorePath = cfg.Score
+		_ = snap.Save(statePath)
 		logResult(result)
 		return nil
 	},
