@@ -57,3 +57,49 @@ func TestLoad_MissingFile_ReturnsError(t *testing.T) {
 		t.Fatal("expected error for missing file, got nil")
 	}
 }
+
+func TestLoad_CustomValues(t *testing.T) {
+	path := writeYAML(t, `
+score: "C:/scores/song.mscz"
+musescore_bin: "C:/custom/MuseScore.exe"
+ableton_osc_host: "192.168.1.1"
+ableton_osc_port: 9000
+ableton_recv_port: 9001
+debounce_ms: 200
+`)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.MuseScoreBin != "C:/custom/MuseScore.exe" {
+		t.Errorf("MuseScoreBin = %q", cfg.MuseScoreBin)
+	}
+	if cfg.AbletonOSCHost != "192.168.1.1" {
+		t.Errorf("AbletonOSCHost = %q", cfg.AbletonOSCHost)
+	}
+	if cfg.AbletonOSCPort != 9000 {
+		t.Errorf("AbletonOSCPort = %d", cfg.AbletonOSCPort)
+	}
+	if cfg.AbletonRecvPort != 9001 {
+		t.Errorf("AbletonRecvPort = %d", cfg.AbletonRecvPort)
+	}
+	if cfg.DebounceMS != 200 {
+		t.Errorf("DebounceMS = %d", cfg.DebounceMS)
+	}
+}
+
+func TestLoad_InvalidYAML_ReturnsError(t *testing.T) {
+	path := writeYAML(t, `score: [not a string`)
+	_, err := config.Load(path)
+	if err == nil {
+		t.Fatal("expected error for invalid YAML")
+	}
+}
+
+func TestLoad_EmptyScore_ReturnsError(t *testing.T) {
+	path := writeYAML(t, `score: ""`)
+	_, err := config.Load(path)
+	if err == nil {
+		t.Fatal("expected error for empty score path")
+	}
+}

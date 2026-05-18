@@ -60,6 +60,51 @@ func newTestClient(t *testing.T, addr string, reply []interface{}) *ableton.Clie
 	return client
 }
 
+func TestClient_SendRecv_Timeout(t *testing.T) {
+	// Server that never responds — bind a port then close it so nothing listens there
+	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	silentPort := conn.LocalAddr().(*net.UDPAddr).Port
+	conn.Close()
+
+	recvConn, _ := net.ListenPacket("udp", "127.0.0.1:0")
+	recvPort := recvConn.LocalAddr().(*net.UDPAddr).Port
+	recvConn.Close()
+
+	// Point client at the now-closed port (no server will respond)
+	client, err := ableton.NewClient("127.0.0.1", silentPort, recvPort)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	defer client.Close()
+
+	_, err = client.SendRecv("/live/song/get/tempo", 100*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+}
+
+func TestClient_Send_NoError(t *testing.T) {
+	mockPort, stop := startMockServer(t, "/fire-and-forget", nil)
+	defer stop()
+
+	recvConn, _ := net.ListenPacket("udp", "127.0.0.1:0")
+	recvPort := recvConn.LocalAddr().(*net.UDPAddr).Port
+	recvConn.Close()
+
+	client, err := ableton.NewClient("127.0.0.1", mockPort, recvPort)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	defer client.Close()
+
+	if err := client.Send("/fire-and-forget"); err != nil {
+		t.Errorf("Send() error: %v", err)
+	}
+}
+
 func TestClient_SendRecv_ReturnsResponse(t *testing.T) {
 	mockPort, stopMock := startMockServer(t, "/live/song/get/tempo", []interface{}{float32(120.0)})
 	defer stopMock()
