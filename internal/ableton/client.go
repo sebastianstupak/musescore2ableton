@@ -11,10 +11,10 @@ import (
 
 // Client communicates with AbletonOSC over UDP.
 type Client struct {
-	sendAddr string
-	recvConn *net.UDPConn
-	handlers map[string]chan *osc.Message
-	mu       sync.Mutex
+	sendUDPAddr *net.UDPAddr
+	recvConn    *net.UDPConn
+	handlers    map[string]chan *osc.Message
+	mu          sync.Mutex
 }
 
 // NewClient creates a Client that sends to sendHost:sendPort and
@@ -28,10 +28,15 @@ func NewClient(sendHost string, sendPort, recvPort int) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ableton: listening on recv port %d: %w", recvPort, err)
 	}
+	sendUDPAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", sendHost, sendPort))
+	if err != nil {
+		recvConn.Close()
+		return nil, fmt.Errorf("ableton: resolving send addr: %w", err)
+	}
 	c := &Client{
-		sendAddr: fmt.Sprintf("%s:%d", sendHost, sendPort),
-		recvConn: recvConn,
-		handlers: make(map[string]chan *osc.Message),
+		sendUDPAddr: sendUDPAddr,
+		recvConn:    recvConn,
+		handlers:    make(map[string]chan *osc.Message),
 	}
 	go c.readLoop()
 	return c, nil
@@ -53,11 +58,7 @@ func (c *Client) Send(addr string, args ...interface{}) error {
 	if err != nil {
 		return err
 	}
-	udpAddr, err := net.ResolveUDPAddr("udp", c.sendAddr)
-	if err != nil {
-		return err
-	}
-	_, err = c.recvConn.WriteTo(data, udpAddr)
+	_, err = c.recvConn.WriteTo(data, c.sendUDPAddr)
 	return err
 }
 
