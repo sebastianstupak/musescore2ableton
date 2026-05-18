@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/getlantern/systray"
+	"fyne.io/systray"
 	"github.com/sebastianstupak/m2a/internal/syncer"
 )
 
-//go:embed assets/icon.png
+//go:embed assets/icon.ico
 var iconBytes []byte
 
 // StatusUpdate carries sync results to the tray for display.

@@ -50,7 +50,7 @@ func applyDefaults(cfg *Config) {
 
 func defaultMuseScoreBin() string {
 	if runtime.GOOS == "windows" {
-		return `C:\Program Files\MuseScore4\bin\MuseScore4.exe`
+		return `C:\Program Files\MuseScore 4\bin\MuseScore4.exe`
 	}
 	return "mscore"
 }

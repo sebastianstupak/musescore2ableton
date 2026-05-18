@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -211,9 +212,26 @@ func actionIcon(a syncer.Action) string {
 }
 
 func main() {
+	setupFileLog()
 	rootCmd.PersistentFlags().StringVar(&cfgPath, "config", "m2a.yml", "path to m2a.yml")
 	rootCmd.AddCommand(watchCmd, syncCmd, resetCmd)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
+}
+
+func setupFileLog() {
+	logDir, err := os.UserCacheDir()
+	if err != nil {
+		return
+	}
+	logDir = filepath.Join(logDir, "m2a")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return
+	}
+	f, err := os.OpenFile(filepath.Join(logDir, "m2a.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return
+	}
+	log.SetOutput(f)
 }
