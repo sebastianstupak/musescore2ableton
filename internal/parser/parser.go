@@ -21,7 +21,7 @@ func Parse(path string) ([]Track, error) {
 	var globalTempos []TempoEvent
 	var globalTimeSigs []TimeSigEvent
 	if len(s.Tracks) > 0 {
-		globalTempos, globalTimeSigs = parseConductor(s.Tracks[0], ticksPerBeat)
+		globalTempos, globalTimeSigs = parseConductor(s.Tracks[0])
 	}
 
 	var tracks []Track
@@ -34,7 +34,7 @@ func Parse(path string) ([]Track, error) {
 	return tracks, nil
 }
 
-func parseConductor(track smf.Track, ticksPerBeat float64) ([]TempoEvent, []TimeSigEvent) {
+func parseConductor(track smf.Track) ([]TempoEvent, []TimeSigEvent) {
 	var tempos []TempoEvent
 	var timeSigs []TimeSigEvent
 	var abs uint32
@@ -54,10 +54,7 @@ func parseConductor(track smf.Track, ticksPerBeat float64) ([]TempoEvent, []Time
 
 func parseInstrumentTrack(track smf.Track, ticksPerBeat float64) Track {
 	var t Track
-	pending := make(map[uint8]struct {
-		tick     uint32
-		velocity uint8
-	})
+	pending := make(map[uint16]pendingNote) // key = ch<<8 | pitch
 	var abs uint32
 
 	for _, ev := range track {
@@ -71,27 +68,30 @@ func parseInstrumentTrack(track smf.Track, ticksPerBeat float64) Track {
 
 		var ch, key, vel uint8
 		if ev.Message.GetNoteOn(&ch, &key, &vel) && vel > 0 {
-			pending[key] = struct {
-				tick     uint32
-				velocity uint8
-			}{tick: abs, velocity: vel}
+			pending[uint16(ch)<<8|uint16(key)] = pendingNote{tick: abs, velocity: vel}
 			continue
 		}
 
 		isNoteOff := ev.Message.GetNoteOff(&ch, &key, &vel)
 		isNoteOnZeroVel := ev.Message.GetNoteOn(&ch, &key, &vel) && vel == 0
 		if isNoteOff || isNoteOnZeroVel {
-			if start, ok := pending[key]; ok {
-				delete(pending, key)
+			k := uint16(ch)<<8 | uint16(key)
+			if pn, ok := pending[k]; ok {
+				delete(pending, k)
 				t.Notes = append(t.Notes, Note{
 					Pitch:     key,
-					Velocity:  start.velocity,
-					StartBeat: float64(start.tick) / ticksPerBeat,
-					Duration:  float64(abs-start.tick) / ticksPerBeat,
+					Velocity:  pn.velocity,
+					StartBeat: float64(pn.tick) / ticksPerBeat,
+					Duration:  float64(abs-pn.tick) / ticksPerBeat,
 				})
 			}
 		}
 	}
 	return t
+}
+
+type pendingNote struct {
+	tick     uint32
+	velocity uint8
 }
 

@@ -61,7 +61,10 @@ func TestParse_ReturnsTrackWithName(t *testing.T) {
 
 func TestParse_ReturnsNote(t *testing.T) {
 	path := buildMIDI(t)
-	tracks, _ := parser.Parse(path)
+	tracks, err := parser.Parse(path)
+	if err != nil {
+		t.Fatalf("Parse() error: %v", err)
+	}
 	notes := tracks[0].Notes
 	if len(notes) != 1 {
 		t.Fatalf("len(notes) = %d, want 1", len(notes))
