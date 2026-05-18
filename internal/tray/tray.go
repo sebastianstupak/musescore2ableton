@@ -23,14 +23,15 @@ type StatusUpdate struct {
 // forceSyncCh: send struct{}{} to trigger a manual sync.
 // updateCh: receive StatusUpdate to refresh the tray menu.
 // quitCh: closed when the user selects Quit.
-func Run(forceSyncCh chan<- struct{}, updateCh <-chan StatusUpdate, quitCh chan<- struct{}) {
+// pauseCh: send true to pause file-event syncing, false to resume.
+func Run(forceSyncCh chan<- struct{}, updateCh <-chan StatusUpdate, quitCh chan<- struct{}, pauseCh chan<- bool) {
 	systray.Run(
-		func() { onReady(forceSyncCh, updateCh, quitCh) },
+		func() { onReady(forceSyncCh, updateCh, quitCh, pauseCh) },
 		func() {},
 	)
 }
 
-func onReady(forceSyncCh chan<- struct{}, updateCh <-chan StatusUpdate, quitCh chan<- struct{}) {
+func onReady(forceSyncCh chan<- struct{}, updateCh <-chan StatusUpdate, quitCh chan<- struct{}, pauseCh chan<- bool) {
 	systray.SetIcon(iconBytes)
 	systray.SetTitle("m2a")
 	systray.SetTooltip("musescore2ableton — watching")
@@ -66,9 +67,17 @@ func onReady(forceSyncCh chan<- struct{}, updateCh <-chan StatusUpdate, quitCh c
 				if watching {
 					mStop.SetTitle("■  Stop watching")
 					systray.SetTooltip("musescore2ableton — watching")
+					select {
+					case pauseCh <- false:
+					default:
+					}
 				} else {
 					mStop.SetTitle("▶  Resume watching")
 					systray.SetTooltip("musescore2ableton — paused")
+					select {
+					case pauseCh <- true:
+					default:
+					}
 				}
 
 			case <-mQuit.ClickedCh:

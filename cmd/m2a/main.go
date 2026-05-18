@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -47,6 +48,7 @@ var watchCmd = &cobra.Command{
 		forceSyncCh := make(chan struct{}, 1)
 		updateCh := make(chan tray.StatusUpdate, 4)
 		quitCh := make(chan struct{})
+		pauseCh := make(chan bool, 1)
 
 		runSync := func() {
 			midPath, err := exp.ExportMIDI(cfg.Score)
@@ -93,13 +95,25 @@ var watchCmd = &cobra.Command{
 			return err
 		}
 
+		var mu sync.Mutex
 		go func() {
+			paused := false
 			for {
 				select {
 				case <-w.Events():
-					runSync()
+					if !paused {
+						if mu.TryLock() {
+							runSync()
+							mu.Unlock()
+						}
+					}
 				case <-forceSyncCh:
-					runSync()
+					if mu.TryLock() {
+						runSync()
+						mu.Unlock()
+					}
+				case p := <-pauseCh:
+					paused = p
 				case <-quitCh:
 					return
 				}
@@ -107,7 +121,7 @@ var watchCmd = &cobra.Command{
 		}()
 
 		log.Printf("m2a watching %s", cfg.Score)
-		tray.Run(forceSyncCh, updateCh, quitCh)
+		tray.Run(forceSyncCh, updateCh, quitCh, pauseCh)
 		return nil
 	},
 }
