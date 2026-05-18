@@ -38,6 +38,9 @@ func TestLoad_MinimalConfig(t *testing.T) {
 	if cfg.DebounceMS != 500 {
 		t.Errorf("DebounceMS = %d, want 500", cfg.DebounceMS)
 	}
+	if cfg.AbletonRecvPort != 11001 {
+		t.Errorf("AbletonRecvPort = %d, want 11001", cfg.AbletonRecvPort)
+	}
 }
 
 func TestLoad_MissingScore_ReturnsError(t *testing.T) {
