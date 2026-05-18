@@ -38,6 +38,28 @@ func startMockServer(t *testing.T, addr string, reply []interface{}) (port int, 
 	return port, func() { conn.Close() }
 }
 
+// newTestClient creates a Client wired to a mock server that responds to addr with reply args.
+func newTestClient(t *testing.T, addr string, reply []interface{}) *ableton.Client {
+	t.Helper()
+	mockPort, stopMock := startMockServer(t, addr, reply)
+	t.Cleanup(stopMock)
+
+	// Bind a free local port for the receive side, then release it for the client.
+	recvConn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("newTestClient: bind recv port: %v", err)
+	}
+	recvPort := recvConn.LocalAddr().(*net.UDPAddr).Port
+	recvConn.Close()
+
+	client, err := ableton.NewClient("127.0.0.1", mockPort, recvPort)
+	if err != nil {
+		t.Fatalf("newTestClient: NewClient() error: %v", err)
+	}
+	t.Cleanup(client.Close)
+	return client
+}
+
 func TestClient_SendRecv_ReturnsResponse(t *testing.T) {
 	mockPort, stopMock := startMockServer(t, "/live/song/get/tempo", []interface{}{float32(120.0)})
 	defer stopMock()
