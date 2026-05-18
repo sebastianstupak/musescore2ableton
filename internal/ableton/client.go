@@ -30,7 +30,7 @@ func NewClient(sendHost string, sendPort, recvPort int) (*Client, error) {
 	}
 	sendUDPAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", sendHost, sendPort))
 	if err != nil {
-		recvConn.Close()
+		recvConn.Close() //nolint:errcheck
 		return nil, fmt.Errorf("ableton: resolving send addr: %w", err)
 	}
 	c := &Client{
@@ -44,7 +44,7 @@ func NewClient(sendHost string, sendPort, recvPort int) (*Client, error) {
 
 // Close shuts down the receive connection.
 func (c *Client) Close() {
-	c.recvConn.Close()
+	c.recvConn.Close() //nolint:errcheck
 }
 
 // Send sends an OSC message without waiting for a response.

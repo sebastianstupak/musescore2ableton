@@ -24,7 +24,7 @@ linters:
     rules:
       - linters: [errcheck]
         text: "defer.*Close"
-      - linters: [gocritic, revive]
+      - linters: [errcheck, gocritic, revive]
         path: "_test\\.go"
       - linters: [all]
         path: "scripts/"
