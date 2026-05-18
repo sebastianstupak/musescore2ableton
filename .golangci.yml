@@ -3,35 +3,34 @@ version: "2"
 linters:
   default: standard
   disable:
-    - depguard     # no package allowlist needed
-    - exhaustruct  # struct literal completeness not required
-    - gochecknoglobals  # cobra commands are package-level globals by convention
-    - wrapcheck    # internal package errors don't need wrapping at every layer
-    - varnamelen   # short names fine in tight scopes
-    - nlreturn     # blank line before return optional
-    - wsl          # whitespace style too opinionated
-    - ireturn      # returning interface from New() is fine
+    - depguard
+    - exhaustruct
+    - gochecknoglobals
+    - wrapcheck
+    - varnamelen
+    - nlreturn
+    - wsl
+    - ireturn
+  settings:
+    govet:
+      enable:
+        - shadow
+    cyclop:
+      max-complexity: 15
+    funlen:
+      lines: 100
+      statements: 60
+  exclusions:
+    rules:
+      - linters: [errcheck]
+        text: "defer.*Close"
+      - linters: [gocritic, revive]
+        path: "_test\\.go"
+      - linters: [all]
+        path: "scripts/"
 
-linters-settings:
-  goimports:
-    local-prefixes: github.com/sebastianstupak/m2a
-  govet:
-    enable:
-      - shadow
-  cyclop:
-    max-complexity: 15
-  funlen:
-    lines: 100
-    statements: 60
-
-issues:
-  exclude-rules:
-    # Ignore errcheck on defer Close() calls — idiomatic Go
-    - linters: [errcheck]
-      text: "defer.*Close"
-    # Test helpers may use t.Fatal freely
-    - linters: [gocritic, revive]
-      path: "_test\\.go"
-    # Generated/scaffold files
-    - linters: [all]
-      path: "scripts/"
+formatters:
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/sebastianstupak/m2a

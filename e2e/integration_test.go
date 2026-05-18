@@ -49,10 +49,10 @@ func TestIntegration_FreshSync_CreatesTrackAndWritesNotes(t *testing.T) {
 	if !fakeServer.HasReceived("/live/song/create_midi_track") {
 		t.Error("expected /live/song/create_midi_track to be received")
 	}
-	if !fakeServer.HasReceived("/live/clip/add/notes") {
+	if !fakeServer.WaitForReceived("/live/clip/add/notes", 500*time.Millisecond) {
 		t.Error("expected /live/clip/add/notes to be received")
 	}
-	if !fakeServer.HasReceived("/live/song/set/tempo") {
+	if !fakeServer.WaitForReceived("/live/song/set/tempo", 500*time.Millisecond) {
 		t.Error("expected /live/song/set/tempo to be received")
 	}
 }
@@ -158,10 +158,10 @@ func TestIntegration_ConflictDetection_CreatesConflictTrack(t *testing.T) {
 	if !fakeServer.HasReceived("/live/song/create_midi_track") {
 		t.Error("expected /live/song/create_midi_track to be received (conflict track)")
 	}
-	if !fakeServer.HasReceived("/live/track/set/name") {
+	if !fakeServer.WaitForReceived("/live/track/set/name", 500*time.Millisecond) {
 		t.Error("expected /live/track/set/name to be received (conflict track naming)")
 	}
-	if !fakeServer.HasReceived("/live/track/set/color") {
+	if !fakeServer.WaitForReceived("/live/track/set/color", 500*time.Millisecond) {
 		t.Error("expected /live/track/set/color to be received (colored red)")
 	}
 }

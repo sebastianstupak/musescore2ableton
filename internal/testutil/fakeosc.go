@@ -4,6 +4,7 @@ import (
 	"net"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/hypebeast/go-osc/osc"
 )
@@ -114,6 +115,18 @@ func (s *FakeServer) HasReceived(addr string) bool {
 		if a == addr {
 			return true
 		}
+	}
+	return false
+}
+
+// WaitForReceived polls until addr is received or timeout elapses.
+func (s *FakeServer) WaitForReceived(addr string, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if s.HasReceived(addr) {
+			return true
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 	return false
 }

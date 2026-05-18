@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -24,7 +25,11 @@ func TestMain(m *testing.M) {
 	}
 	defer os.RemoveAll(tmp)
 
-	m2aBin = filepath.Join(tmp, "m2a.exe")
+	binName := "m2a"
+	if runtime.GOOS == "windows" {
+		binName = "m2a.exe"
+	}
+	m2aBin = filepath.Join(tmp, binName)
 	cmd := exec.Command("go", "build", "-o", m2aBin, "../cmd/m2a")
 	cmd.Dir = "." // e2e directory
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -32,6 +37,33 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(m.Run())
+}
+
+// writeFakeMuseScore writes a platform-appropriate fake MuseScore script that
+// copies midPath to the output path argument ($2 / %2). If midPath is empty,
+// the script is a no-op (useful for tests that don't need MuseScore to run).
+func writeFakeMuseScore(t *testing.T, dir string, midPath string) string {
+	t.Helper()
+	var scriptPath, content string
+	if runtime.GOOS == "windows" {
+		scriptPath = filepath.Join(dir, "fake_musescore.bat")
+		if midPath == "" {
+			content = "@echo off\r\n"
+		} else {
+			content = fmt.Sprintf("@echo off\r\ncopy /Y \"%s\" %%2 >nul\r\n", filepath.FromSlash(midPath))
+		}
+	} else {
+		scriptPath = filepath.Join(dir, "fake_musescore.sh")
+		if midPath == "" {
+			content = "#!/bin/sh\n"
+		} else {
+			content = fmt.Sprintf("#!/bin/sh\ncp '%s' \"$2\"\n", midPath)
+		}
+	}
+	if err := os.WriteFile(scriptPath, []byte(content), 0755); err != nil {
+		t.Fatalf("writing fake musescore script: %v", err)
+	}
+	return scriptPath
 }
 
 // writeConfig writes a YAML config file to the given path.
@@ -60,15 +92,11 @@ func TestSubprocess_SyncCommand_FreshState(t *testing.T) {
 	// Build MIDI fixture
 	midPath := buildMIDIFixture(t)
 
-	// Write a fake MuseScore batch script that copies the fixture to the output path
+	// Write a fake MuseScore script that copies the fixture to the output path.
 	// The exporter calls: bin -o <outPath> <scorePath>
-	// So %1 = -o, %2 = outPath, %3 = scorePath
+	// On Windows: %2 is outPath; on Unix: $2 is outPath.
 	dir := t.TempDir()
-	batPath := filepath.Join(dir, "fake_musescore.bat")
-	batContent := fmt.Sprintf("@echo off\r\ncopy /Y \"%s\" %%2 >nul\r\n", filepath.FromSlash(midPath))
-	if err := os.WriteFile(batPath, []byte(batContent), 0755); err != nil {
-		t.Fatalf("writing bat file: %v", err)
-	}
+	fakeMuseScore := writeFakeMuseScore(t, dir, midPath)
 
 	// Start FakeServer with no tracks
 	fakeServer := testutil.NewFakeServer(t)
@@ -86,7 +114,7 @@ func TestSubprocess_SyncCommand_FreshState(t *testing.T) {
 
 	// Write config YAML
 	configPath := filepath.Join(dir, "m2a.yml")
-	writeConfig(t, configPath, scorePath, batPath, "127.0.0.1", fakeServer.Port, recvPort)
+	writeConfig(t, configPath, scorePath, fakeMuseScore, "127.0.0.1", fakeServer.Port, recvPort)
 
 	// Run m2a sync
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -102,7 +130,7 @@ func TestSubprocess_SyncCommand_FreshState(t *testing.T) {
 	}
 
 	// Assert fakeServer received /live/clip/add/notes
-	if !fakeServer.HasReceived("/live/clip/add/notes") {
+	if !fakeServer.WaitForReceived("/live/clip/add/notes", 2*time.Second) {
 		t.Error("expected /live/clip/add/notes to be received")
 		t.Logf("received: %v", fakeServer.ReceivedAddrs())
 	}
@@ -149,13 +177,10 @@ func TestSubprocess_ResetCommand(t *testing.T) {
 	}
 
 	// Write config YAML (ableton ports don't matter for reset)
-	batPath := filepath.Join(dir, "fake_musescore.bat")
-	if err := os.WriteFile(batPath, []byte("@echo off\r\n"), 0755); err != nil {
-		t.Fatalf("writing bat file: %v", err)
-	}
+	fakeMuseScore := writeFakeMuseScore(t, dir, "")
 	recvPort := freePort(t)
 	configPath := filepath.Join(dir, "m2a.yml")
-	writeConfig(t, configPath, scorePath, batPath, "127.0.0.1", 11000, recvPort)
+	writeConfig(t, configPath, scorePath, fakeMuseScore, "127.0.0.1", 11000, recvPort)
 
 	// Run m2a reset
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
