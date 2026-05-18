@@ -1,0 +1,9 @@
+*.exe
+*.dll
+*.so
+*.dylib
+dist/
+m2a.exe
+/m2a_sync.mid
+.m2a_state.json
+m2a.yml
