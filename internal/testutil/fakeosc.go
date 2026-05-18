@@ -58,7 +58,7 @@ func NewFakeServer(t *testing.T) *FakeServer {
 
 // Stop shuts down the server.
 func (s *FakeServer) Stop() {
-	s.conn.Close()
+	s.conn.Close() //nolint:errcheck
 }
 
 // SetTrackNames sets the track names returned by the fake server.

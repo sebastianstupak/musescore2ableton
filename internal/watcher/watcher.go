@@ -52,7 +52,7 @@ func (w *Watcher) Events() <-chan struct{} {
 
 func (w *Watcher) Close() {
 	w.once.Do(func() {
-		w.fsw.Close()
+		w.fsw.Close() //nolint:errcheck
 		close(w.done)
 	})
 }

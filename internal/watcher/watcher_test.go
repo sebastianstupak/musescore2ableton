@@ -122,12 +122,10 @@ func TestWatcher_Close_StopsEvents(t *testing.T) {
 	// Events channel should eventually close (unblock reads)
 	select {
 	case _, open := <-w.Events():
-		if open {
-			// Got an event before close propagated — check the channel closes eventually
-		}
-		// channel closed — OK
+		// If channel is still open, an event arrived before close propagated; that's fine.
+		// If closed (open==false), that's the expected outcome.
+		_ = open
 	case <-time.After(2 * time.Second):
-		// Channel never closed — but this may be OK if it just blocks; the critical
-		// thing is Close doesn't panic or deadlock
+		// Channel didn't close within timeout; Close() must not deadlock.
 	}
 }

@@ -12,9 +12,6 @@ linters:
     - wsl
     - ireturn
   settings:
-    govet:
-      enable:
-        - shadow
     cyclop:
       max-complexity: 15
     funlen:

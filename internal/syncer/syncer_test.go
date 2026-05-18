@@ -11,10 +11,9 @@ import (
 
 // stubAbleton is a fake ableton client for testing syncer logic.
 type stubAbleton struct {
-	trackNames         []string
-	clipNotes          map[int][]parser.Note
-	createdTracks      []string
-	addedNotes         map[int][]parser.Note
+	trackNames []string
+	clipNotes  map[int][]parser.Note
+	addedNotes map[int][]parser.Note
 	colors             map[int]int32
 	lastTempo          float64
 	lastSigNumerator   int
