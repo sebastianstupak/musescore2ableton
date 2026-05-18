@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ type Watcher struct {
 	events     chan struct{}
 	fsw        *fsnotify.Watcher
 	once       sync.Once
+	done       chan struct{}
 }
 
 func New(path string, debounceMS int) (*Watcher, error) {
@@ -31,6 +33,7 @@ func New(path string, debounceMS int) (*Watcher, error) {
 		debounceMS: debounceMS,
 		events:     make(chan struct{}, 1),
 		fsw:        fsw,
+		done:       make(chan struct{}),
 	}, nil
 }
 
@@ -48,10 +51,14 @@ func (w *Watcher) Events() <-chan struct{} {
 }
 
 func (w *Watcher) Close() {
-	w.once.Do(func() { w.fsw.Close() })
+	w.once.Do(func() {
+		w.fsw.Close()
+		close(w.done)
+	})
 }
 
 func (w *Watcher) loop() {
+	defer close(w.events)
 	var timer *time.Timer
 	for {
 		select {
@@ -71,16 +78,21 @@ func (w *Watcher) loop() {
 					time.Duration(w.debounceMS)*time.Millisecond,
 					func() {
 						select {
-						case w.events <- struct{}{}:
+						case <-w.done:
 						default:
+							select {
+							case w.events <- struct{}{}:
+							default:
+							}
 						}
 					},
 				)
 			}
-		case _, ok := <-w.fsw.Errors:
+		case err, ok := <-w.fsw.Errors:
 			if !ok {
 				return
 			}
+			fmt.Fprintf(os.Stderr, "watcher: fsnotify error: %v\n", err)
 		}
 	}
 }
