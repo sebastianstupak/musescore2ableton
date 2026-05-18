@@ -18,7 +18,7 @@ func TestIntegration_FreshSync_CreatesTrackAndWritesNotes(t *testing.T) {
 	t.Parallel()
 
 	fakeServer := testutil.NewFakeServer(t)
-	fakeServer.TrackNames = []string{}
+	fakeServer.SetTrackNames([]string{})
 
 	midPath := buildMIDIFixture(t)
 	tracks, err := parser.Parse(midPath)
@@ -63,11 +63,11 @@ func TestIntegration_SecondSync_NoChange_Skips(t *testing.T) {
 	t.Parallel()
 
 	fakeServer := testutil.NewFakeServer(t)
-	fakeServer.TrackNames = []string{"Piano"}
+	fakeServer.SetTrackNames([]string{"Piano"})
 	// ClipNotes[0] = C4 quarter note, matching the snapshot
-	fakeServer.ClipNotes[0] = []testutil.NoteData{
-		{Pitch: 60, StartBeat: 0, Duration: 1.0, Velocity: 100, Mute: 0},
-	}
+	fakeServer.SetClipNotes(map[int][]testutil.NoteData{
+		0: {{Pitch: 60, StartBeat: 0, Duration: 1.0, Velocity: 100, Mute: 0}},
+	})
 
 	midPath := buildMIDIFixture(t)
 	tracks, err := parser.Parse(midPath)
@@ -115,11 +115,11 @@ func TestIntegration_ConflictDetection_CreatesConflictTrack(t *testing.T) {
 	t.Parallel()
 
 	fakeServer := testutil.NewFakeServer(t)
-	fakeServer.TrackNames = []string{"Piano"}
+	fakeServer.SetTrackNames([]string{"Piano"})
 	// Ableton has pitch 62 (D4) — different from snapshot pitch 60
-	fakeServer.ClipNotes[0] = []testutil.NoteData{
-		{Pitch: 62, StartBeat: 0, Duration: 1.0, Velocity: 100, Mute: 0},
-	}
+	fakeServer.SetClipNotes(map[int][]testutil.NoteData{
+		0: {{Pitch: 62, StartBeat: 0, Duration: 1.0, Velocity: 100, Mute: 0}},
+	})
 
 	// MuseScore has pitch 64 (E4) — also different from snapshot pitch 60
 	midPath := buildMIDIFixtureWithPitch(t, 64)
@@ -172,7 +172,7 @@ func TestIntegration_StateFilePersistence(t *testing.T) {
 	t.Parallel()
 
 	fakeServer := testutil.NewFakeServer(t)
-	fakeServer.TrackNames = []string{}
+	fakeServer.SetTrackNames([]string{})
 
 	midPath := buildMIDIFixture(t)
 	tracks, err := parser.Parse(midPath)

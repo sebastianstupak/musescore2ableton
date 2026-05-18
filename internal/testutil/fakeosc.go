@@ -32,10 +32,9 @@ type FakeServer struct {
 
 	received []ReceivedCmd
 
-	// Configurable Ableton state
-	TrackNames   []string
-	ClipNotes    map[int][]NoteData
-	NextTrackIdx int
+	trackNames   []string
+	clipNotes    map[int][]NoteData
+	nextTrackIdx int
 }
 
 // NewFakeServer starts a fake AbletonOSC server bound to a free UDP port.
@@ -49,7 +48,7 @@ func NewFakeServer(t *testing.T) *FakeServer {
 	s := &FakeServer{
 		Port:      conn.LocalAddr().(*net.UDPAddr).Port,
 		conn:      conn.(*net.UDPConn),
-		ClipNotes: make(map[int][]NoteData),
+		clipNotes: make(map[int][]NoteData),
 	}
 	go s.serve()
 	t.Cleanup(s.Stop)
@@ -59,6 +58,34 @@ func NewFakeServer(t *testing.T) *FakeServer {
 // Stop shuts down the server.
 func (s *FakeServer) Stop() {
 	s.conn.Close()
+}
+
+// SetTrackNames sets the track names returned by the fake server.
+func (s *FakeServer) SetTrackNames(names []string) {
+	s.mu.Lock()
+	s.trackNames = names
+	s.mu.Unlock()
+}
+
+// SetClipNotes sets the clip notes returned for a given track index.
+func (s *FakeServer) SetClipNotes(notes map[int][]NoteData) {
+	s.mu.Lock()
+	s.clipNotes = notes
+	s.mu.Unlock()
+}
+
+// SetNextTrackIdx sets the next track index the server will return for create_midi_track.
+func (s *FakeServer) SetNextTrackIdx(idx int) {
+	s.mu.Lock()
+	s.nextTrackIdx = idx
+	s.mu.Unlock()
+}
+
+// GetNextTrackIdx returns the current next-track-index counter.
+func (s *FakeServer) GetNextTrackIdx() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.nextTrackIdx
 }
 
 // Received returns a copy of all commands received.
@@ -130,7 +157,7 @@ func (s *FakeServer) buildReply(msg *osc.Message) *osc.Message {
 	case "/live/song/get/track_names":
 		reply := osc.NewMessage(msg.Address)
 		s.mu.Lock()
-		for _, name := range s.TrackNames {
+		for _, name := range s.trackNames {
 			reply.Append(name)
 		}
 		s.mu.Unlock()
@@ -145,7 +172,7 @@ func (s *FakeServer) buildReply(msg *osc.Message) *osc.Message {
 			}
 		}
 		s.mu.Lock()
-		notes := s.ClipNotes[int(trackIdx)]
+		notes := s.clipNotes[int(trackIdx)]
 		s.mu.Unlock()
 		for _, n := range notes {
 			reply.Append(n.Pitch)
@@ -158,8 +185,8 @@ func (s *FakeServer) buildReply(msg *osc.Message) *osc.Message {
 
 	case "/live/song/create_midi_track":
 		s.mu.Lock()
-		idx := int32(s.NextTrackIdx)
-		s.NextTrackIdx++
+		idx := int32(s.nextTrackIdx)
+		s.nextTrackIdx++
 		s.mu.Unlock()
 		reply := osc.NewMessage(msg.Address)
 		reply.Append(idx)

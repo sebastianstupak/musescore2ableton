@@ -72,7 +72,7 @@ func TestSubprocess_SyncCommand_FreshState(t *testing.T) {
 
 	// Start FakeServer with no tracks
 	fakeServer := testutil.NewFakeServer(t)
-	fakeServer.TrackNames = []string{}
+	fakeServer.SetTrackNames([]string{})
 
 	// Find a free port for the ableton recv port
 	recvPort := freePort(t)

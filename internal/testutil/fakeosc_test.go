@@ -33,7 +33,7 @@ func newClientAgainstFake(t *testing.T, srv *testutil.FakeServer) *ableton.Clien
 
 func TestFakeServer_GetTrackNames(t *testing.T) {
 	srv := testutil.NewFakeServer(t)
-	srv.TrackNames = []string{"Piano", "Violin"}
+	srv.SetTrackNames([]string{"Piano", "Violin"})
 
 	client := newClientAgainstFake(t, srv)
 
@@ -51,7 +51,7 @@ func TestFakeServer_GetTrackNames(t *testing.T) {
 
 func TestFakeServer_CreateMIDITrack(t *testing.T) {
 	srv := testutil.NewFakeServer(t)
-	srv.NextTrackIdx = 3
+	srv.SetNextTrackIdx(3)
 
 	client := newClientAgainstFake(t, srv)
 
@@ -63,8 +63,8 @@ func TestFakeServer_CreateMIDITrack(t *testing.T) {
 		t.Errorf("CreateMIDITrack() = %d, want 3", idx)
 	}
 	// NextTrackIdx should have incremented
-	if srv.NextTrackIdx != 4 {
-		t.Errorf("NextTrackIdx = %d, want 4", srv.NextTrackIdx)
+	if srv.GetNextTrackIdx() != 4 {
+		t.Errorf("NextTrackIdx = %d, want 4", srv.GetNextTrackIdx())
 	}
 	if !srv.HasReceived("/live/song/create_midi_track") {
 		t.Error("server did not receive create_midi_track command")
@@ -73,12 +73,12 @@ func TestFakeServer_CreateMIDITrack(t *testing.T) {
 
 func TestFakeServer_GetNotes(t *testing.T) {
 	srv := testutil.NewFakeServer(t)
-	srv.ClipNotes = map[int][]testutil.NoteData{
+	srv.SetClipNotes(map[int][]testutil.NoteData{
 		0: {
 			{Pitch: 60, StartBeat: 0.0, Duration: 1.0, Velocity: 100, Mute: 0},
 			{Pitch: 64, StartBeat: 1.0, Duration: 0.5, Velocity: 80, Mute: 0},
 		},
-	}
+	})
 
 	client := newClientAgainstFake(t, srv)
 
@@ -117,8 +117,8 @@ func TestFakeServer_FireAndForget_Recorded(t *testing.T) {
 
 func TestFakeServer_ReceivedOrder(t *testing.T) {
 	srv := testutil.NewFakeServer(t)
-	srv.TrackNames = []string{"A"}
-	srv.NextTrackIdx = 0
+	srv.SetTrackNames([]string{"A"})
+	srv.SetNextTrackIdx(0)
 
 	client := newClientAgainstFake(t, srv)
 
