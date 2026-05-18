@@ -53,11 +53,6 @@ func TestCreateMIDITrack(t *testing.T) {
 
 func TestSetTrackName(t *testing.T) {
 	// SetTrackName is fire-and-forget; just verify no error on send.
-	// Use a mock that will accept the packet (port doesn't need to reply).
-	_, stopMock := startMockServer(t, "/live/track/set/name", nil)
-	defer stopMock()
-
-	// We need a client pointed at some address — reuse newTestClient with a dummy addr.
 	c := newTestClient(t, "/live/track/set/name", nil)
 	if err := c.SetTrackName(0, "MyTrack"); err != nil {
 		t.Fatalf("SetTrackName() error: %v", err)
