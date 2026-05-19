@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -22,6 +23,15 @@ import (
 )
 
 func runAutoWatch() error {
+	// Single-instance guard: write a lock file; exit if one already exists.
+	lockPath := filepath.Join(os.TempDir(), "m2a.lock")
+	lf, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return fmt.Errorf("m2a is already running (lock: %s)", lockPath)
+	}
+	defer os.Remove(lockPath)
+	lf.Close()
+
 	globalCfg, err := globalconfig.Load()
 	if err != nil {
 		return fmt.Errorf("loading global config: %w", err)
@@ -60,29 +70,29 @@ func runAutoWatch() error {
 		active activeState
 	)
 
-	activateProject := func(p *projectregistry.Project) error {
+	activateProject := func(p *projectregistry.Project) (changed bool, err error) {
 		mu.Lock()
 		defer mu.Unlock()
 		if active.project != nil && active.project.Dir == p.Dir {
-			return nil
+			return false, nil
 		}
 		if active.w != nil {
 			active.w.Close()
 		}
 		cfg, err := config.Load(p.ConfigPath)
 		if err != nil {
-			return fmt.Errorf("loading project config %s: %w", p.ConfigPath, err)
+			return false, fmt.Errorf("loading project config %s: %w", p.ConfigPath, err)
 		}
 		w, err := watcher.New(cfg.Score, cfg.DebounceMS)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if err := w.Start(); err != nil {
-			return err
+			return false, err
 		}
 		active = activeState{project: p, cfg: cfg, w: w, exp: exporter.New(cfg.MuseScoreBin)}
 		log.Printf("autowatch: activated project %s", p.Name)
-		return nil
+		return true, nil
 	}
 
 	runSync := func() {
@@ -165,12 +175,20 @@ func runAutoWatch() error {
 					updateCh <- tray.StatusUpdate{Time: time.Now()}
 					log.Printf("autowatch: no m2a project detected")
 				case 1:
-					if err := activateProject(matches[0]); err != nil {
+					changed, err := activateProject(matches[0])
+					if err != nil {
 						log.Printf("autowatch: activate error: %v", err)
+					} else if changed {
+						// Push a tray update immediately so the project name shows
+						// without waiting for the user to save.
+						updateCh <- tray.StatusUpdate{Time: time.Now(), ProjectName: matches[0].Name}
 					}
 				default:
-					if err := activateProject(matches[0]); err != nil {
+					changed, err := activateProject(matches[0])
+					if err != nil {
 						log.Printf("autowatch: activate error: %v", err)
+					} else if changed {
+						updateCh <- tray.StatusUpdate{Time: time.Now(), ProjectName: matches[0].Name}
 					}
 					names := make([]string, len(matches))
 					for i, m := range matches {
@@ -185,8 +203,11 @@ func runAutoWatch() error {
 			case name := <-activateCh:
 				for i := range projects {
 					if projects[i].Name == name {
-						if err := activateProject(&projects[i]); err != nil {
+						changed, err := activateProject(&projects[i])
+						if err != nil {
 							log.Printf("autowatch: manual activate error: %v", err)
+						} else if changed {
+							updateCh <- tray.StatusUpdate{Time: time.Now(), ProjectName: projects[i].Name}
 						}
 						break
 					}
