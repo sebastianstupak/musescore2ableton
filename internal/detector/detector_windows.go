@@ -72,6 +72,7 @@ func openMsczFiles() ([]string, error) {
 			continue
 		}
 		for _, arg := range cmdline[1:] {
+			arg = strings.Trim(arg, `"`)
 			if strings.EqualFold(filepath.Ext(arg), ".mscz") {
 				files = append(files, filepath.Clean(arg))
 			}
