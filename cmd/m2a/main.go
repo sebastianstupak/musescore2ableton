@@ -268,6 +268,20 @@ var rootListCmd = &cobra.Command{
 	},
 }
 
+// install / uninstall commands
+
+var installCmd = &cobra.Command{
+	Use:   "install",
+	Short: "Register m2a as a Windows startup task (runs on login)",
+	RunE:  runInstall,
+}
+
+var uninstallCmd = &cobra.Command{
+	Use:   "uninstall",
+	Short: "Remove the m2a Windows startup task",
+	RunE:  runUninstall,
+}
+
 // create command
 
 var createRoot string
@@ -359,7 +373,7 @@ func main() {
 	createCmd.Flags().StringVar(&createRoot, "root", "", "parent directory to create project in (default: current directory)")
 	configCmd.AddCommand(configRootCmd)
 	configRootCmd.AddCommand(rootAddCmd, rootRemoveCmd, rootListCmd)
-	rootCmd.AddCommand(watchCmd, syncCmd, resetCmd, configCmd, createCmd)
+	rootCmd.AddCommand(watchCmd, syncCmd, resetCmd, configCmd, createCmd, installCmd, uninstallCmd)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
